@@ -1,0 +1,163 @@
+---
+title: "dHM2013"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{dHM2013}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+# library(dHM2013R)
+load_all()
+```
+
+This vignette documents my attempt to replicate the analysis of @dhaultfoeuille_inference_2013 on British data, specifically the longitudinal cohort studies Next Steps and BCS 1970.
+
+Their analysis is based upon the extended Roy model, with two sectors, non-pecuniary factors and uncertainty in future earnings.
+$$
+Y_0 = X'\beta_0 + \varepsilon_0 \\
+Y_1 = X'\beta_1 + \varepsilon_1 \\
+D = 1\{ -\delta_0 + X'(\beta_1 - \beta_0 - \gamma_0) + \eta_{\Delta} > 0 \}
+$$
+where $\varepsilon_k = \eta_k + \nu_k$, $\eta_{\Delta} = \eta_1 - \eta_0$, and $X \perp (\eta_1, \eta_0)$. The young person knows $\eta_k$ at the time they make their decision but not $\nu_k$.
+
+@dhaultfoeuille_inference_2013's method is a 3-step procedure that relies on $\eta_k$ linking the outcome ($y_k$) and choice ($D$) equations. The 3 steps are as follows:
+1) estimate $\zeta_0 = \frac{\beta_1 - \beta_0 - \gamma_0}{\beta_{11} - \beta_{01} - \gamma_{01}} \Rightarrow \zeta_{01} = 1$, where $x_1$ is some continuous $x \in X$. Use @coppejans_estimation_2001 approach. 
+2) estimate $\beta_1$ and $\beta_0$ via @newey_two-step_2009's series estimator (which involves using the index from step-1 and its power series as a control function).
+3) estimate ($\delta_0$ and $\gamma_0$) via @dhaultfoeuille_inference_2013's novel method.
+
+# Step 1: (we could also use a logit or probit here) 
+
+## Probit and logit estimation for comparison
+
+```{r logit}
+
+benefitVars <- c(
+  'betterJob', 'betterPay', 'betterOpp', 'need4Career', 'showSkills',
+  'delayWorkGd', 'socialLifeGd', 'leaveHomeGd', 'keepStudy', 'moreQuals',
+  'persDevel', 'moreConfid', 'moreRespect', 'betterLife', 'prepareLife'
+)
+
+costVars <- c(
+  'tooExpensive', 'getDebt', 'parentsMoney', 'notFinancIndep', 'notWorkEarn',
+  'costsGen', 'noGuaranteeGdJb', 'notNeed4Career', 'lessExp', 'tooHard',
+  'leaveHomeBad', 'tooLong', 'wasteTime', 'feesEtc', 'stress'
+)
+
+xControls <- c(
+  'w4SOCMajorMP', 'w4ethgrpMP',
+  'w4hiqualgMP', 'W5AlevNoYP', 'W5EMA1YP',
+  'W4AlevNoYP', 'w4sexMP', 'W4SexYP',
+  "cogScore"
+)
+
+# regression predicted wages
+logitControlsFit <- c(benefitVars, costVars, xControls)
+
+step1Formula <- as.formula(
+  paste0('degree ~ ', paste0(logitControlsFit, collapse = ' + '))
+)
+
+step1Probit <- glm(
+  step1Formula,
+  data = dtLsype4dHM,
+  na.action = na.exclude
+)
+
+summary(step1Probit)
+
+step1Logit <- glm(
+  step1Formula,
+  data = dtLsype4dHM,
+  family = binomial(),
+  na.action = na.exclude
+)
+
+summary(step1Logit)
+```
+
+## Mixture of distributions (MOD) estimator (@coppejans_estimation_2001)
+
+@coppejans_estimation_2001 proposes the mixture of distributions estimator, that allows estimation of binary response models when the error distribution is unknown. Rather than assume a logistic or Gaussian error distribution, the MOD estimator employs a mixture of smooth distributions. The method relies upon a single index as we have in the extended Roy model here. 
+
+The estimator maximises
+$$
+Q_n(\omega(x;\Psi_k, \zeta)) = \frac{1}{n}\sum_{i=1}^n \{y_i - [1 - \Psi_k(-x'\zeta; a, b, \{\mu_j, \pi_j\}, \sigma_k)] \}^2
+$$
+with respect to $(\zeta, a, b, \{\mu_j, \pi_j\}, \sigma_k)$, and where
+$$
+\Psi_k(u; a, b, \{\mu_j, \pi_j\}, \sigma_k)  = a - (b-a)\sum_{j=1}^k \pi_j H\left( \frac{u - \mu_j}{\sigma_k} \right).
+$$
+Here, $k$ is the number of mixing components and $H(\cdot)$ is some smooth distribution (e.g. $\Phi(\cdot)$), $\pi_j, 0 \leq \pi_j \leq 1, \sum_{j=1}^k \pi_j = 1$ are mixing weights, $\mu_j$ is a location parameter, $a$ is an intercept and $b-a$ a slope term (we can set $b=1$ and $a=0$ here).
+
+The maximisation is subject to the following constraints:
+
+- $\sigma_k > \min\{0.5, \frac{0.5\hat{\sigma}_{p}}{n^{0.2}}\}$, where $\hat{\sigma}_{p}$ is the Probit estimate of $\sigma$
+- an upper bound on the second derivative:
+  $$
+  \left| \frac{b-a}{\sigma^2_k}\sum_{j=1}^k \pi_j H^{(2)}\left( \frac{z_{j,l} - \mu_j}{\sigma_k} \right) \right| \leq C^{(2)}_{\Psi}, \,l = 1,2,
+  $$
+  where $z_{j,1} = \mu_j - \sigma_k$ and $z_{j,1} = \mu_j + \sigma_k$, and
+  $$
+  C^{(2)}_{\Psi} \equiv \min\left\{ \frac{\exp{(-0.5)}}{\sqrt{2\pi}}\max\left[ 0.5^{-2}, \left( \frac{0.5\hat{\sigma_p}}{n^{0.2}} \right)^{-1.5} \right], 1000 \right\}.
+  $$
+  This constraint is motivated by noting that $\left| H^{(2)}\left( \frac{z - \mu_j}{\sigma_k} \right) \right|$ obtains a maximum at $\mu_j \pm \sigma_k$. 
+
+However, for computation we only impose the bound on $\sigma$ and will check the bounds on the derivative after maximising.
+
+@coppejans_estimation_2001 suggests picking $k = 7$ for 250 observations, though @dhaultfoeuille_inference_2013 use $k=3$.   
+
+```{r constraints from probit}
+
+sigma_p <- sd(step1Probit$residuals)
+
+sigma_lb <- min(.5 * sigma_p / (1593^.2), 0.5)
+
+c2Psi_ub <- min((exp(-.5)/sqrt(2*pi)) * max(1/4, (.5 * sigma_p / (1593^.2))^(-1.5)), 1000)
+
+```
+
+```{r }
+
+k <- 3
+
+pi_k <- rep(1/k, k-1)
+
+mu <- rep(0, k)
+sigma <- sigma_p
+
+zeta <- step1Probit$coefficients
+
+x <- model.matrix(
+  object = step1Probit$formula,
+  data = step1Probit$model
+)
+  
+y <- step1Probit$y
+
+Q <- function(zeta, pik, mu, sigma, x, y) {
+  mean((y - (1 - (
+    pik[[1]] * pnorm(- x %*% zeta, mean = mu[[1]], sd = sigma) +
+      pik[[2]] * pnorm(- x %*% zeta, mean = mu[[2]], sd = sigma) +
+      (1 - pik[[1]] - pik[[2]]) * pnorm(- x %*% zeta, mean = mu[[3]], sd = sigma)
+  )))^2)
+}
+
+Q2 <- function(theta) {
+  Q(zeta = theta[1:59], pik = theta[60:61], mu = theta[62:64], 
+    sigma = theta[65], x = x, y = y)
+}
+
+step1Coppejans <- optim(
+  par = c(zeta, pi_k, mu, sigma),
+  fn = Q2, method = "BFGS", control = list(maxit = 500)
+)
+```
