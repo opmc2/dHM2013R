@@ -17,6 +17,10 @@ knitr::opts_chunk$set(
 ```{r setup}
 # library(dHM2013R)
 load_all()
+
+library(data.table)
+library(magrittr)
+
 ```
 
 This vignette documents my attempt to replicate the analysis of @dhaultfoeuille_inference_2013 on British data, specifically the longitudinal cohort studies Next Steps and BCS 1970.
@@ -34,7 +38,9 @@ where $\varepsilon_k = \eta_k + \nu_k$, $\eta_{\Delta} = \eta_1 - \eta_0$, and $
 2) estimate $\beta_1$ and $\beta_0$ via @newey_two-step_2009's series estimator (which involves using the index from step-1 and its power series as a control function).
 3) estimate ($\delta_0$ and $\gamma_0$) via @dhaultfoeuille_inference_2013's novel method.
 
-# Step 1: (we could also use a logit or probit here) 
+# Step 1 (we could also use a logit or probit here) 
+
+Estimating $\zeta$.
 
 ## Probit and logit estimation for comparison
 
