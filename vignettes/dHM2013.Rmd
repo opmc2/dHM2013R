@@ -162,12 +162,115 @@ Q <- function(zeta, pik, mu, sigma, x, y) {
 }
 
 Q2 <- function(theta) {
-  Q(zeta = theta[1:59], pik = theta[60:61], mu = theta[62:64], 
-    sigma = theta[65], x = x, y = y)
+  Q(zeta = c(theta[1:57], 1), pik = theta[58:59], mu = theta[60:62], 
+    sigma = theta[63], x = x, y = y)
 }
 
 step1Coppejans <- optim(
-  par = c(zeta, pi_k, mu, sigma),
+  par = c(zeta[1:57], pi_k, mu, sigma),
   fn = Q2, method = "BFGS", control = list(maxit = 500)
 )
+
+```
+
+```{r compare probit logit and coppejans}
+
+paramEstsStep1 <- data.table(
+  varName = names(step1Probit$coefficients), 
+  probitEstimate = step1Probit$coefficients / step1Probit$coefficients["cogScore"]
+) %>% 
+  merge(
+    data.table(
+      varName = names(step1Logit$coefficients), 
+      logitEstimate = step1Logit$coefficients / step1Logit$coefficients["cogScore"]
+    ), by = "varName"
+) %>%
+  merge(
+    data.table(
+      varName = names(step1Coppejans$par[1:58]), 
+      coppejansEstimate = step1Coppejans$par[1:58] / step1Coppejans$par[[58]]
+    ), by = "varName"
+)
+
+
+```
+
+Comparing the parameter estimates across Probit, Logit and @coppejans_estimation_2001 approaches, the signs of the estimates are all the same---except the intercept which is positive for Probit and negative for the other two. 
+
+# Step 2 (@newey_two-step_2009)
+
+The idea behind step 2 is to use a control function approach *a la* @heckman_common_1976 but replacing the inverse Mills ratio with a function of the index from step 1. 
+
+A possibility suggested in @newey_two-step_2009 is to use a power series of the index itself, so if we borrow the notation from that paper and let $\hat{v} = x'\hat{\zeta}$ then the control function is $h(\hat{v}) = \sum_{k=1}^K \hat{v}^k$.
+
+We can then estimate $(\beta_1, \beta_0)$ directly using least squares in regressions of the form:
+$$
+y_1 = x\beta_1 + h(\hat{v}) \\
+y_0 = x\beta_0 + h(1-\hat{v})
+$$
+Not completely sure about the second equation here---is that the correct control function? 
+
+```{r step 2}
+
+vhatVec <- x %*% c(step1Coppejans$par[1:57], 1)
+
+dtLsype4dHM <- dtLsype4dHM[, vhat1 := vhatVec[, 1]]
+dtLsype4dHM[, one_vhat1 := 1 - vhat1]
+dtLsype4dHM[, paste0("vhat", 2:6) := .(vhat1^2, vhat1^3, vhat1^4, vhat1^5, vhat1^6)]
+dtLsype4dHM[, paste0("one_vhat", 2:6) := .(one_vhat1^2, one_vhat1^3, one_vhat1^4, one_vhat1^5, one_vhat1^6)]
+
+step2FormulaD1 <- as.formula(
+  paste0('logHourWage ~ ', paste0(c(xControls, "betterPay", paste0("vhat", 1:6)), collapse = ' + '))
+)
+
+step2FormulaD0 <- as.formula(
+  paste0('logHourWage ~ ', paste0(c(xControls, "betterPay", paste0("one_vhat", 1:6)), collapse = ' + '))
+)
+
+step2Formula_noVhat <- as.formula(
+  paste0('logHourWage ~ ', paste0(c(xControls, "betterPay"), collapse = ' + '))
+)
+
+step2d1 <- lm(
+  formula = step2FormulaD1,
+  data = dtLsype4dHM[degree == TRUE]
+)
+
+step2d1_noVhat <- lm(
+  formula = step2Formula_noVhat,
+  data = dtLsype4dHM[degree == TRUE]
+)
+
+step2d0 <- lm(
+  formula = step2FormulaD0,
+  data = dtLsype4dHM[degree == FALSE]
+)
+
+step2d0_noVhat <- lm(
+  formula = step2Formula_noVhat,
+  data = dtLsype4dHM[degree == FALSE]
+)
+
+step2Estimates <- data.table(
+  varName = names(step2d1$coefficients),
+  d1estimates = step2d1$coefficients
+) %>%
+  merge(
+    data.table(
+      varName = names(step2d1_noVhat$coefficients),
+      d1estimates_noVhat = step2d1_noVhat$coefficients
+    ), by = "varName"
+  ) %>%
+  merge(
+    data.table(
+      varName = names(step2d0$coefficients),
+      d0estimates = step2d0$coefficients
+    ), by = "varName"
+  ) %>%
+  merge(
+    data.table(
+      varName = names(step2d0_noVhat$coefficients),
+      d0estimates_noVhat = step2d0_noVhat$coefficients
+    ), by = "varName"
+  )
 ```
