@@ -194,4 +194,13 @@ dtLsype4dHM[!(W8DHANVQH %in% c('NVQ Level 4', 'NVQ Level 5')),
 
 dtLsype4dHM <- dtLsype4dHM[logHourWage < Inf & logHourWage > -Inf, ]
 
+cols2keep <- c("NSID", newBenefitVars, newCostVars,
+               c('w4SOCMajorMP', 'w4ethgrpMP',
+                 'w4hiqualgMP', 'W5AlevNoYP', 'W5EMA1YP',
+                 'W4AlevNoYP', 'w4sexMP', 'W4SexYP',
+                 "cogScore"), "logHourWage", "degree")
+
+dtLsype4dHM <- dtLsype4dHM[, ..cols2keep]
+dtLsype4dHM <- dtLsype4dHM[complete.cases(dtLsype4dHM)]
+
 usethis::use_data(dtLsype4dHM, overwrite = TRUE)
