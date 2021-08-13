@@ -131,7 +131,7 @@ c2Psi_ub <- min((exp(-.5)/sqrt(2*pi)) * max(1/4, (.5 * sigma_p / (1593^.2))^(-1.
 
 ```
 
-```{r }
+```{r step1 coppejans}
 
 k <- 3
 
@@ -140,14 +140,18 @@ pi_k <- rep(1/k, k-1)
 mu <- rep(0, k)
 sigma <- sigma_p
 
-zeta <- step1Probit$coefficients
+zeta <- step1Probit$coefficients[2:59] / step1Probit$coefficients[[59]]
 
 x <- model.matrix(
   object = step1Probit$formula,
   data = step1Probit$model
-)
+)[, 2:59]
+
+x_x1 <- x / x[, "cogScore"]
   
 y <- step1Probit$y
+
+y_x1 <- y / x[, "cogScore"]
 
 Q <- function(zeta, pik, mu, sigma, x, y) {
   mean((y - (1 - (
