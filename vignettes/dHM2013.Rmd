@@ -274,3 +274,131 @@ step2Estimates <- data.table(
     ), by = "varName"
   )
 ```
+
+# Step 3: estimating $\delta_0$ and $\gamma_0$
+
+The final step of the estimation is the novel third stage of @dhaultfoeuille_inference_2013, which builds on the logic in their identification proof. 
+
+First, we define $\alpha_0 \equiv \beta_{01} - \beta_{11} + \gamma_{01}$ and estimating $\alpha_0$ is sufficient to find $\gamma_0$ as $\gamma_0 = \beta_1 - \beta_0 + \alpha_0 \zeta_0$.
+
+The assumed index model implies $\E[D|X]$ and $E[\varepsilon|X]$ depend only on the index, $U \equiv X'\zeta_0$. Therefore, define $q_0(u) = E[D|U=u]$ and $g_0(u) = E[\varepsilon|U=u]$, and
+$$
+g'_0(U) = q'_0(U)(\delta_0 + \alpha_0U)
+$$
+Integrating between $u_0$ and $U$ gives
+$$
+g_0(U) = \tilde{\lambda}_0 + q_0(U)\delta_0 + \alpha_0\int_{u_0}^U uq'_0(u)du \\
+= \lambda_0 + q_0(U)\delta_0 + \left[ q_0(U)U - \int_{u_0}^U q_0(u)du \right]\alpha_0 
+$$
+which is also 
+$$
+\varepsilon = \lambda_0 + D\delta_0 + \left[ DU - \int_{u_0}^U q_0(u)du \right]\alpha_0 + \xi, \, E[\xi|X] = E[\xi|U] = 0.
+$$
+To estimate equation 5, let $\theta_0 = (\lambda_0, \delta_0, \alpha_0)'$, $V = DU - \int_{u_0}^U q_0(u)du$ and $W = (1, D, V)'$, meaning $\varepsilon = W'\theta_0 + \xi$. D and V are exogeneous as D depends on both U and $\tilde{\eta}_{\Delta}$. Therefore, use functions of U as intruments for D and V: $Z = h(U) = (1, h_1(U), h_2(U))'$. Then $\theta_0 = E(ZW')^{-1}E(Z\varepsilon)$, and an estimator is
+$$
+\hat{\theta} = \left(\frac{1}{n} \sum_{i=1}^n \hat{Z}_i\hat{W}_i\right)^{-1} \left(\frac{1}{n} \sum_{i=1}^n \hat{Z}_i\hat{\varepsilon}_i\right)
+$$
+Following the method in @dhaultfoeuille_inference_2013 and the online appendix, we have:
+$$
+\hat{\varepsilon}_i = Y_i - X_i'(D_i\hat{\beta}_1 + (1-D_i)\hat{\beta}_0), \hat{W}_i = (1, D_i, \hat{V}_i), \\
+\hat{V}_i = D_i\hat{U}_i - \int_{\hat{u}_0}^\hat{U_i} \hat{q}(u, \hat{\zeta}) du, \\
+\hat{Z}_i = h(\hat{U}_i), \hat{U}_i = X_i'\hat{\zeta}, \\
+\hat{q}(u,\zeta) = \frac{\sum_{i=1}^n D_i K(\frac{u - X_i'\zeta}{h_n})}{\sum_{i=1}^n K(\frac{u - X_i'\zeta}{h_n})}
+$$
+@dhaultfoeuille_inference_2013 choose a quartic kernel, $K(v) = (15/16)(1-v^2)^2\mathds{1}_{[-1,1]}(v)$, with bandwidth $h_n = 0.5\sigma(\hat{U})n^{-1/7}$, with $\sigma(\hat{U})$ the estimated standard deviation of U. Finally, the functions to instrument D and V are:
+$$
+h_1(x) = \Phi(\hat{a}_0 + \hat{a}_1x), \\
+h_2(x) = xh_1(x) - \int_{\hat{u}_0}^x \hat{q}(u, \hat{\zeta})du,
+$$
+and $(\hat{a}_0, \hat{a}_1)$ is the probit estimator of D on $(1, \hat{U})$.
+
+```{r kernel estimator for q}
+
+n <- 1593
+sigmaU <- sd(vhatVec[, 1])
+Xzeta <- vhatVec[, 1]
+u <- Xzeta
+d <- as.numeric(y)
+
+q0 <- function(u) {
+  M <- matrix(rep(u, each = length(Xzeta)), nrow = length(Xzeta), ncol = length(u))
+  Ku <- matrix(
+    kde(Xzeta - mean(Xzeta), h = .5 * sigmaU * n^(-1/7), 
+        eval.points = M - Xzeta)$estimate, 
+    nrow = length(Xzeta), ncol = length(u)
+  )
+  if (length(u) > 1) {
+    colSums(d * Ku) / colSums(Ku)
+  } else {
+    sum(d * Ku) / sum(Ku)
+  }
+}
+
+u0 <- min(Xzeta)
+
+intq0 <- function(u) {
+  res <- list()
+  for (i in length(u)) {
+    res[[i]] <- integrate(q0, lower = u0, upper = u[[i]])$value
+  }
+  unlist(res)
+}
+
+V <- d * u - intq0(u)
+```
+
+```{r instruments for D and V}
+
+aModel <- glm(d ~ u)
+a0 <- aModel$coefficients[[1]]
+a1 <- aModel$coefficients[[2]]
+
+h1 <- pnorm(a0 + a1 * u)
+h2 <- u * h1 - intq0(u)
+
+Z <- cbind(1, h1, h2)
+
+```
+
+```{r estimates step 3}
+
+b0 <- step2d0$coefficients[1:30]
+b1 <- step2d1$coefficients[1:30]
+xWage <- model.matrix(object = step2Formula_noVhat, 
+                      data = dtLsype4dHM)
+
+b <- d * matrix(rep(b1, n), nrow = n) + (1-d) * matrix(rep(b0, n), nrow = n)
+
+eps <- y - rowSums(xWage * b)
+W <- cbind(1, d, V)
+
+theta <- colSums(Z * eps) / colSums(Z * W)
+
+step3Estimates <- step1Estimates[, .(varName, zeta0 = coppejansEstimate)] %>%
+  merge(step2Estimates[, .(varName, beta1 = d1estimates, beta0 = d0estimates)], by = "varName", all = TRUE)
+
+step3Estimates[is.na(zeta0), zeta0 := 1]
+
+step3Estimates[is.na(step3Estimates)] <- 0
+
+step3Estimates[, gamma0 := beta1 - beta0 + theta[[3]] * zeta0]
+
+```
+
+# Estimating the distribution of *ex ante* returns 
+
+The distribution of *ex ante* returns, $F_{\Delta}(u) = E[F_{\eta_{\Delta}}(u + X'(\beta_0 - \beta_1))]$. Note that 
+$$
+P(D = 0|X) = F_{\eta_{\Delta}}(\delta_0 + X'\alpha_0 \zeta_0)
+$$
+Therefore we can estimate $F_{\eta_{\Delta}}$ by regressing nonparametrically 1-D on the index $\hat{\delta} + X'\hat{\alpha}\hat{\zeta}$.
+
+```{r np regression}
+
+DeltaIndex <- theta[[1]] + theta[[3]] * Xzeta
+
+deltaModel <- npreg(d ~ DeltaIndex)
+
+plot(deltaModel)
+```
+
