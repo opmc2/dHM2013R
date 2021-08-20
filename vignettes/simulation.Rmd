@@ -1,0 +1,99 @@
+---
+title: "simulation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{simulation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+# library(dHM2013R)
+load_all()
+
+```
+
+In this vignette I replicate the simulation exercise from @dhaultfoeuille_inference_2013 to test my procedure for implementing their estimation strategy. 
+
+# Simulating the data
+
+The model they simulate is as follows:
+$$
+Y_{0i} = x_{2i}\beta_{02} + x_{3i} \beta_{03} + \eta_{0i} + \nu_{0i} \\
+Y_{1i} = x_{1i}\beta_{11} + x_{3i} \beta_{13} + \eta_{1i} + \nu_{1i} \\
+D_i = \mathbb{1}\{-\delta_0 + x_{1i}(\beta_{11} - \gamma_{01}) + x_{2i}(-\beta_{02} - \gamma_{02}) + x_{3i}(\beta_{13} - \beta_{03} - \gamma_{03}) + \eta_{1i} -\eta_{0i} > 0 \}.
+$$
+
+The true values of the parameters are $\beta_{02} = \beta_{03} = 1, \, \beta_{11} = 2, \, \beta_{13} = 0.5, \, \gamma_{01} = -0.5, \, \gamma_{02} = 0.5, \, \gamma_{03} = -0.8, \, \delta = 0.8$, so that the instruments / exclusion restrictions are $\beta_{01} = 0$ and $\beta_{12} = 0$. $x_1, x_2 \overset{iid}{\sim} U(0,4)$, $x_3 \sim Bernoulli(0.5)$. The unobserved heterogeneity terms are jointly normal, $(\eta_0, \eta_1)' \sim N(\mu, \Sigma)$, with $\mu = (0,1)'$ and $\Sigma_{11} = \Sigma_{22} = 1, \, \Sigma_{12} = \Sigma_{21} = 0.5$. The other error terms are from a heteroskedastic normal distribution, with zero mean and conditional matrix variance:
+$$
+\Omega(x) = \begin{pmatrix}
+\exp{\frac{x_2}{5}} & 0.5\sqrt{\exp{\left(\frac{x_2}{5} + \frac{x_1}{5}\right)}} \\
+0.5\sqrt{\exp{\left(\frac{x_2}{5} + \frac{x_1}{5}\right)}} & \exp{\frac{x_1}{5}}
+\end{pmatrix}
+$$
+
+# Run estimation using function `progDHM2013()`
+
+
+```{r progDHM2013}
+
+listDt <- list()
+res <- list()
+for (i in 1:500) {
+  listDt[[i]] <- simulateData()
+  res[[i]] <- progDHM2013(dt = listDt[[i]], 
+                          varList = paste0("x", 1:3), ivY1 = "x2", ivY0 = "x1")
+}
+
+
+```
+
+## Results
+
+```{r combine results}
+
+for (i in 1:length(res)) {
+  res[[i]][, replication := i]
+}
+
+dtRes <- rbindlist(res)
+
+dtRes <- melt(
+  dtRes, 
+  id.vars = c("varName", "replication"),
+  variable.name = "coefficient"
+)
+
+dtLabels <- dtRes[, .(
+  maxValue = max(value), meanValue = mean(value), medianValue = median(value)
+), by = .(varName, coefficient)]
+
+library(ggplot2)
+library(ggrepel)
+
+ggplot(data = dtRes, 
+       mapping = aes(x = varName, y = value, colour = coefficient)) +
+  geom_boxplot() + 
+  geom_label_repel(data = dtLabels[coefficient == "zeta0"], 
+            aes(x = varName, y = maxValue, label = coefficient),
+            position = position_nudge(x = -.3, y = .15)) +
+  geom_label_repel(data = dtLabels[coefficient == "beta0"], 
+            aes(x = varName, y = maxValue, label = coefficient),
+            position = position_nudge(x = -.15, y = .15)) +
+  geom_label_repel(data = dtLabels[coefficient == "beta1"], 
+            aes(x = varName, y = maxValue, label = coefficient),
+            position = position_nudge(x = .15, y = .15)) +
+  geom_label_repel(data = dtLabels[coefficient == "gamma0"], 
+            aes(x = varName, y = maxValue, label = coefficient),
+            position = position_nudge(x = .3, y = .15)) +
+  scale_x_discrete(name = "Variable") +
+  theme_classic() +
+  guides(colour = "none")
+```
