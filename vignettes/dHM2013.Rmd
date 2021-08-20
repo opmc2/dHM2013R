@@ -175,7 +175,7 @@ step1Coppejans <- optim(
 
 ```{r compare probit logit and coppejans}
 
-paramEstsStep1 <- data.table(
+step1Estimates <- data.table(
   varName = names(step1Probit$coefficients), 
   probitEstimate = step1Probit$coefficients / step1Probit$coefficients["cogScore"]
 ) %>% 
