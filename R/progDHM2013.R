@@ -41,8 +41,9 @@ progDHM2013 <- function(dt, varList, bw = .5,
     formula = step1Formula,
     data = dt
   )
+  p <- length(step1Probit$coefficients)-1
 
-  ## Coppejans (2003) estimator
+  #* Coppejans (2003) estimator ####
   sigma_p <- sd(step1Probit$residuals)
 
   # sigma_lb <- min(.5 * sigma_p / (n^.2), 0.5)
@@ -141,21 +142,26 @@ progDHM2013 <- function(dt, varList, bw = .5,
   dtEstimates <- dtEstimates %>%
     merge(
       data.table(
-        varName = c(ivY0, names(step2d0$coefficients)[2:p]),
-        beta0 = c(0, step2d0$coefficients[2:p])
+        varName = names(step2d0$coefficients)[
+          !(names(step2d0$coefficients) %like% "leg|(Intercept)")],
+        beta0 = step2d0$coefficients[
+          !(names(step2d0$coefficients) %like% "leg|(Intercept)")]
       ), by = "varName", all = TRUE
     ) %>%
     merge(
       data.table(
-        varName = c(ivY1, names(step2d1$coefficients)[2:p]),
-        beta1 = c(0, step2d1$coefficients[2:p])
+        varName = names(step2d1$coefficients)[
+          !(names(step2d0$coefficients) %like% "leg|(Intercept)")],
+        beta1 = step2d1$coefficients[
+          !(names(step2d0$coefficients) %like% "leg|(Intercept)")]
       ), by = "varName", all = TRUE
     )
+  dtEstimates[is.na(dtEstimates)] <- 0
 
-  # Step 3: estimating delta0 and gamma0
-  ## Calculate V
+  # ---- Step 3: estimating delta0 and gamma0 ----
+  #* Calculate V ----
   sigmaU <- sd(xZetaHat)
-  d <- as.numeric(y)
+  d <- as.numeric(d)
 
   K <- function(u, xZ, h) {
     uu <- (u - xZ) / h
