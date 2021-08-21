@@ -18,15 +18,17 @@
 #' @param ivY1,ivY0 Character variables containing the names of the excluded
 #'   variables from each of the equations. Default (`NULL`) is no excluded
 #'   variables.
-progDHM2013 <- function(dt, varList, ivY1 = NULL, ivY0 = NULL, ivD = NULL) {
+progDHM2013 <- function(dt, varList, bw = .5,
+                        x1 = "x1", d = "d", y = "y",
+                        ivY1 = NULL, ivY0 = NULL, ivD = NULL) {
 
-  # Setup
+  # ---- Setup ----
   n <- nrow(dt)
-  p <- length(varList)
+  setnames(dt, old = c(x1, d, y), new = c("x1", "d", "y"), skip_absent = TRUE)
+  varList[match(varList, x1)] <- "x1"
 
-
-  # Step 1
-  ## Probit model
+  # ---- Step 1 ----
+  #* Probit model ####
   if (is.null(ivD)) {
     step1Formula <- as.formula(paste0("d~", paste0(varList, collapse = "+")))
   } else {
@@ -163,7 +165,7 @@ progDHM2013 <- function(dt, varList, ivY1 = NULL, ivY0 = NULL, ivD = NULL) {
   q0 <- function(u) {
     uMat <- matrix(rep(u, each = length(xZetaHat)),
                    nrow = length(xZetaHat), ncol = length(u))
-    Ku <- K(uMat, xZ = xZetaHat, h = .5 * sigmaU * n^(-1/7))
+    Ku <- K(uMat, xZ = xZetaHat, h = bw * sigmaU * n^(-1/7))
     if (length(u) > 1) {
       res <- colSums(d * Ku) / colSums(Ku)
     } else {
