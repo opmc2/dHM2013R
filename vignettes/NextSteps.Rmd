@@ -385,6 +385,41 @@ step3Estimates[, gamma0 := beta1 - beta0 + theta[[3]] * zeta0]
 
 ```
 
+# Estimation using `progDHM2013()`
+
+```{r using function}
+
+benefitVars <- c(
+  'betterJob', 'betterPay', 'betterOpp', 'need4Career', 'showSkills',
+  'delayWorkGd', 'socialLifeGd', 'leaveHomeGd', 'keepStudy', 'moreQuals',
+  'persDevel', 'moreConfid', 'moreRespect', 'betterLife', 'prepareLife'
+)
+
+costVars <- c(
+  'tooExpensive', 'getDebt', 'parentsMoney', 'notFinancIndep', 'notWorkEarn',
+  'costsGen', 'noGuaranteeGdJb', 'notNeed4Career', 'lessExp', 'tooHard',
+  'leaveHomeBad', 'tooLong', 'wasteTime', 'feesEtc', 'stress'
+)
+
+xControls <- c(
+  "cogScore", #x1
+  'w4SOCMajorMP', 'w4ethgrpMP',
+  'w4hiqualgMP', 'W5AlevNoYP', 'W5EMA1YP',
+  'W4AlevNoYP', 'w4sexMP', 'W4SexYP'
+)
+
+# testing the function manually
+dt <- dtLsype4dHM
+varList <- c(xControls, benefitVars, costVars)
+x1 <- "cogScore"
+d <- "degree"
+y <- "logHourWage"
+ivY1 <- c(benefitVars, costVars)[-2]
+ivY0 <- c(benefitVars, costVars)[-2]
+
+
+```
+
 # Estimating the distribution of *ex ante* returns 
 
 The distribution of *ex ante* returns, $F_{\Delta}(u) = E[F_{\eta_{\Delta}}(u + X'(\beta_0 - \beta_1))]$. Note that 
