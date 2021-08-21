@@ -64,7 +64,7 @@ progDHM2013 <- function(dt, varList, bw = .5,
     data = step1Probit$model
   )
 
-  y <- step1Probit$y
+  d <- step1Probit$y
 
   Q <- function(zeta, pik, mu, sigma, x, y) {
     mean((y - (1 - (
@@ -77,7 +77,7 @@ progDHM2013 <- function(dt, varList, bw = .5,
   Q2 <- function(theta) {
     Q(zeta = c(theta[[1]], 1, theta[2:p]), pik = theta[(p+1):(p+2)],
       mu = theta[(p+3):(p+5)],
-      sigma = theta[(p+6)], x = x, y = y)
+      sigma = theta[(p+6)], x = x, y = d)
   }
 
   step1Coppejans <- optim(
@@ -90,7 +90,7 @@ progDHM2013 <- function(dt, varList, bw = .5,
     zeta0 = c(1, step1Coppejans$par[2:p])
   )
 
-  # Step 2: Newey (2009) estimator
+  # ---- Step 2: Newey (2009) estimator ----
   xZetaHat <- (x[, 2:(p+1)] %*% c(1, step1Coppejans$par[2:p]))[, 1]
 
   dt[, vhat1 := xZetaHat]
