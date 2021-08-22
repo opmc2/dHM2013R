@@ -18,9 +18,6 @@ knitr::opts_chunk$set(
 # library(dHM2013R)
 load_all()
 
-library(data.table)
-library(magrittr)
-
 ```
 
 This vignette documents my attempt to replicate the analysis of @dhaultfoeuille_inference_2013 on British data, specifically the longitudinal cohort studies Next Steps and BCS 1970.
@@ -417,6 +414,45 @@ y <- "logHourWage"
 ivY1 <- c(benefitVars, costVars)[-2]
 ivY0 <- c(benefitVars, costVars)[-2]
 
+```
+
+```{r run function}
+resLsype <- progDHM2013(
+  dt = dtLsype4dHM,
+  varList = c(xControls, benefitVars, costVars),
+  x1 = "cogScore", d = "degree", y = "logHourWage",
+  ivY1 = c(benefitVars, costVars)[-2], 
+  ivY0 = c(benefitVars, costVars)[-2], bw = 2.5
+)
+
+
+# use_data(resLsype, overwrite = TRUE)
+```
+
+# Distribution of non-pecuniary "costs"
+
+# Distribution of non-pecuniary factors
+
+```{r np dist}
+
+# with resBcs loaded
+gamma0 <- resLsype$dtEstimates[, gamma0]
+names(gamma0) <- resLsype$dtEstimates[, varName]
+gamma0 <- gamma0[colnames(resLsype$x[, 2:length(gamma0)])]
+delta0 <- resLsype$dtEstimates[, unique(delta0)]
+
+# calculate np "value"
+npValue <- colSums(t(resLsype$x) * c(delta0, gamma0))
+
+# plot density
+plot(density(-npValue))
+
+# plot density including d
+npDensity <- density(-npValue)
+plot(npDensity$x, npDensity$y*30, type = "l")
+points(-npValue, d)
+
+
 
 ```
 
@@ -430,10 +466,39 @@ Therefore we can estimate $F_{\eta_{\Delta}}$ by regressing nonparametrically 1-
 
 ```{r np regression}
 
-DeltaIndex <- theta[[1]] + theta[[3]] * Xzeta
+library(np)
 
-deltaModel <- npreg(d ~ DeltaIndex)
+alpha0 <- resLsype$dtEstimates[, unique(alpha0)]
+delta0 <- resLsype$dtEstimates[, unique(delta0)]
 
+zeta0 <- resLsype$dtEstimates[, zeta0]
+names(zeta0) <- resLsype$dtEstimates[, varName]
+zeta0 <- zeta0[colnames(resLsype$x[, 2:length(zeta0)])]
+
+d <- as.numeric(dtLsype4dHM[, degree])
+
+
+DeltaIndex <- colSums(t(resLsype$x) * c(delta0, zeta0))
+
+deltaModel <- np::npreg(1-d ~ DeltaIndex)
+
+plot(deltaModel)
+
+beta0 <- resLsype$dtEstimates[, beta0]
+names(beta0) <- resLsype$dtEstimates[, varName]
+beta0 <- beta0[colnames(resLsype$x[, 2:length(zeta0)])]
+beta1 <- resLsype$dtEstimates[, beta1]
+names(beta1) <- resLsype$dtEstimates[, varName]
+beta1 <- beta1[colnames(resLsype$x[, 2:length(zeta0)])]
+
+Tx <- colSums(t(resLsype$x[, 2:length(zeta0)]) * (beta0 - beta1))
+Gx <- DeltaIndex - Tx
+
+Fdelta <- npreg(txdat = DeltaIndex, tydat = 1-d, exdat = rep(Gx, each = length(Tx))+Tx)
+
+Fd <- colSums(matrix(Fdelta$mean, nrow = length(Tx))) / length(Tx)
+
+plot(x = -Gx, y = Fd)
 plot(deltaModel)
 ```
 
