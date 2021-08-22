@@ -41,7 +41,7 @@ progDHM2013 <- function(dt, varList, bw = .5, allVarsD = TRUE,
     formula = step1Formula,
     data = dt
   )
-  p <- length(step1Probit$coefficients)-1
+  if (isTRUE(allVarsD)) p <- length(step1Probit$coefficients)-1
 
   #* Coppejans (2003) estimator ####
   sigma_p <- sd(step1Probit$residuals)
@@ -81,7 +81,7 @@ progDHM2013 <- function(dt, varList, bw = .5, allVarsD = TRUE,
   }
 
   step1Coppejans <- optim(
-    par = c(zeta[c(1, 3:(p+1))], pi_k, mu, sigma),
+    par = c(zeta[-match("x1", names(zeta))], pi_k, mu, sigma),
     fn = Q2, method = "BFGS", control = list(maxit = 500)
   )
 
