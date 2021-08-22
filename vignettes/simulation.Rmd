@@ -81,18 +81,18 @@ library(ggrepel)
 ggplot(data = dtRes, 
        mapping = aes(x = varName, y = value, colour = coefficient)) +
   geom_boxplot() + 
-  geom_label_repel(data = dtLabels[coefficient == "zeta0"], 
-            aes(x = varName, y = maxValue, label = coefficient),
-            position = position_nudge(x = -.3, y = .15)) +
-  geom_label_repel(data = dtLabels[coefficient == "beta0"], 
-            aes(x = varName, y = maxValue, label = coefficient),
-            position = position_nudge(x = -.15, y = .15)) +
-  geom_label_repel(data = dtLabels[coefficient == "beta1"], 
-            aes(x = varName, y = maxValue, label = coefficient),
-            position = position_nudge(x = .15, y = .15)) +
-  geom_label_repel(data = dtLabels[coefficient == "gamma0"], 
-            aes(x = varName, y = maxValue, label = coefficient),
-            position = position_nudge(x = .3, y = .15)) +
+  # geom_label(data = dtLabels[coefficient == "zeta0"], 
+  #           aes(x = varName, y = maxValue, label = coefficient, colour = coefficient),
+  #           position = position_nudge(x = -.3, y = .15)) +
+  # geom_label(data = dtLabels[coefficient == "beta0"], 
+  #           aes(x = varName, y = maxValue, label = coefficient, colour = coefficient),
+  #           position = position_nudge(x = -.15, y = .15)) +
+  # geom_label(data = dtLabels[coefficient == "beta1"], 
+  #           aes(x = varName, y = maxValue, label = coefficient, colour = coefficient),
+  #           position = position_nudge(x = .15, y = .15)) +
+  # geom_label(data = dtLabels[coefficient == "gamma0"], 
+  #           aes(x = varName, y = maxValue, label = coefficient, colour = coefficient),
+  #           position = position_nudge(x = .3, y = .15)) +
   scale_x_discrete(name = "Variable") +
   theme_classic() +
   guides(colour = "none")
