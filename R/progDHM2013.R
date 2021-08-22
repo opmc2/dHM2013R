@@ -225,5 +225,5 @@ progDHM2013 <- function(dt, varList, bw = .5, allVarsD = TRUE,
     alpha0 = theta[[3]], lambda0 = theta[[1]], delta0 = theta[[2]]
   )]
 
-  return(dtEstimates)
+  return(list(dtEstimates = dtEstimates, x = x))
 }
