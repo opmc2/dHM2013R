@@ -18,14 +18,14 @@
 #' @param ivY1,ivY0 Character variables containing the names of the excluded
 #'   variables from each of the equations. Default (`NULL`) is no excluded
 #'   variables.
-progDHM2013 <- function(dt, varList, bw = .5,
+progDHM2013 <- function(dt, varList, bw = .5, allVarsD = TRUE,
                         x1 = "x1", d = "d", y = "y",
                         ivY1 = NULL, ivY0 = NULL, ivD = NULL) {
 
   # ---- Setup ----
   n <- nrow(dt)
   setnames(dt, old = c(x1, d, y), new = c("x1", "d", "y"), skip_absent = TRUE)
-  varList[match(varList, x1)] <- "x1"
+  varList <- c("x1", varList[-match(x1, varList)])
 
   # ---- Step 1 ----
   #* Probit model ####
@@ -151,9 +151,9 @@ progDHM2013 <- function(dt, varList, bw = .5,
     merge(
       data.table(
         varName = names(step2d1$coefficients)[
-          !(names(step2d0$coefficients) %like% "leg|(Intercept)")],
+          !(names(step2d1$coefficients) %like% "leg|(Intercept)")],
         beta1 = step2d1$coefficients[
-          !(names(step2d0$coefficients) %like% "leg|(Intercept)")]
+          !(names(step2d1$coefficients) %like% "leg|(Intercept)")]
       ), by = "varName", all = TRUE
     )
   dtEstimates[is.na(dtEstimates)] <- 0
