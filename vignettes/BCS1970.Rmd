@@ -1,0 +1,148 @@
+---
+title: "BCS1970"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{BCS1970}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+# library(dHM2013R)
+load_all()
+
+library(data.table)
+library(magrittr)
+```
+
+# Setup
+
+```{r variables for progDHM2013}
+
+npVars <- c(
+  # about work
+  "qualHelpJob", "whoKnowHelpJob", "deterHelpJob", "luckGetJob",
+  "educOnlyDelayEmp", "bestLvSchlASAP", "planCareerUseless", "takeAnyJob",
+  "expGrQuals",
+  # job related
+  "helpOth", "hiPay", "goodBoss", "wrkOutside", "selfEmp", "jobVaries",
+  "jobEasy", "jobAmbi", "jobMath", "tradeProf", "jobQuiet", "jobLT", "jobChall",
+  "jobTravel", "jobBuild", "jobRegHrs",
+  # adult life
+  "moreFun", "ftJob", "selfResp", "notBossed", "canVote", "noDoss", "moveOut",
+  "getMarr", "nightClub", "localComm", "xFilms", "drinkAlc", "politics", "kids",
+  "doWhatIWant"
+  # personality ones to add
+)
+
+wageVars <- c(
+  "fathSocCls", "mothSocCls", "ethnGrp", "sex", "parHiQualF", "cogScore", "parInc"
+)
+
+```
+
+```{r step by step arguments}
+dt = dtBcs4dHM
+varList = c(wageVars, npVars)
+x1 = "cogScore"
+d = "degree"
+y = "logWkPay"
+ivY1 = npVars[-match("hiPay", npVars)]
+ivY0 = npVars[-match("hiPay", npVars)]
+
+resBcs <- list(dtEstimates = dtEstimates, x = x)
+
+use_data(resBcs)
+```
+
+
+```{r run progDHM2013 using function}
+
+resBcs <- progDHM2013(
+  dt = dtBcs4dHM,
+  varList = c(wageVars, npVars),
+  x1 = "cogScore", d = "degree", y = "logWkPay", bw = 1,
+  ivY1 = npVars[!(npVars %like% "hiPay")], 
+  ivY0 = npVars[!(npVars %like% "hiPay")]
+)
+
+```
+
+
+# Distribution of non-pecuniary factors
+
+```{r np dist}
+
+# with resBcs loaded
+gamma0 <- resBcs$dtEstimates[, gamma0]
+names(gamma0) <- resBcs$dtEstimates[, varName]
+gamma0 <- gamma0[colnames(resBcs$x[, 2:120])]
+delta0 <- resBcs$dtEstimates[, unique(delta0)]
+
+# calculate np "value"
+npValue <- colSums(t(x) * c(delta0, gamma0))
+
+# plot density
+plot(density(-npValue))
+
+# plot density including d
+npDensity <- density(-npValue)
+plot(npDensity$x, npDensity$y*30, type = "l")
+points(-npValue, d)
+
+
+
+```
+
+# Estimating the distribution of *ex ante* returns 
+
+The distribution of *ex ante* returns, $F_{\Delta}(u) = E[F_{\eta_{\Delta}}(u + X'(\beta_0 - \beta_1))]$. Note that 
+$$
+P(D = 0|X) = F_{\eta_{\Delta}}(\delta_0 + X'\alpha_0 \zeta_0)
+$$
+Therefore we can estimate $F_{\eta_{\Delta}}$ by regressing nonparametrically 1-D on the index $\hat{\delta} + X'\hat{\alpha}\hat{\zeta}$.
+
+```{r np regression}
+
+library(np)
+
+alpha0 <- resBcs$dtEstimates[, unique(alpha0)]
+delta0 <- resBcs$dtEstimates[, unique(delta0)]
+
+zeta0 <- resBcs$dtEstimates[, zeta0]
+names(zeta0) <- resBcs$dtEstimates[, varName]
+zeta0 <- zeta0[colnames(resBcs$x[, 2:120])]
+
+d <- as.numeric(dtBcs4dHM[, degree])
+
+
+DeltaIndex <- colSums(t(resBcs$x) * c(delta0, zeta0))
+
+deltaModel <- np::npreg(d ~ DeltaIndex)
+
+plot(deltaModel)
+
+beta0 <- resBcs$dtEstimates[, beta0]
+names(beta0) <- resBcs$dtEstimates[, varName]
+beta0 <- beta0[colnames(resBcs$x[, 2:120])]
+beta1 <- resBcs$dtEstimates[, beta1]
+names(beta1) <- resBcs$dtEstimates[, varName]
+beta1 <- beta1[colnames(resBcs$x[, 2:120])]
+
+Tx <- colSums(t(resBcs$x[, 2:120]) * (beta0 - beta1))
+Gx <- DeltaIndex - Tx
+
+Fdelta <- npreg(txdat = DeltaIndex, tydat = 1-d, exdat = rep(Gx, each = length(Tx))+Tx)
+
+Fd <- colSums(matrix(Fdelta$mean, nrow = length(Tx))) / length(Tx)
+
+plot(x = -Gx, y = Fd)
+plot(deltaModel)
+```
