@@ -48,14 +48,19 @@ listDt <- list()
 res <- list()
 for (i in 1:500) {
   listDt[[i]] <- simulateData()
-  res[[i]] <- progDHM2013(dt = listDt[[i]], 
-                          varList = paste0("x", 1:3), ivY1 = "x2", ivY0 = "x1")
+  res[[i]] <- progDHM2013(
+    dt = listDt[[i]], 
+    varList = paste0("x", 1:3), 
+    ivY1 = "x2", ivY0 = "x1"
+  )
 }
 
 
 ```
 
-## Results
+# Results
+
+## Parameter estimates
 
 ```{r combine results}
 
@@ -97,3 +102,77 @@ ggplot(data = dtRes,
   theme_classic() +
   guides(colour = "none")
 ```
+
+## Distribution of non-pecuniary factors
+
+```{r np dist}
+
+# dtSim <- simulateData()
+# resSim <- progDHM2013(
+#   dt = dtSim, 
+#   varList = paste0("x", 1:3), 
+#   ivY1 = "x2", ivY0 = "x1"
+# )
+
+gamma0 <- resSim$dtEstimates[, gamma0]
+names(gamma0) <- resSim$dtEstimates[, varName]
+gamma0 <- gamma0[colnames(resSim$x[, 2:(length(gamma0)+1)])]
+delta0 <- resSim$dtEstimates[, unique(delta0)]
+
+# calculate np "value"
+npValue <- colSums(t(resSim$x) * c(delta0, gamma0))
+
+# plot density
+plot(density(-npValue))
+d <- dtSim[, d]
+
+# plot density including d
+npDensity <- density(-npValue)
+plot(npDensity$x, npDensity$y*2.2, type = "l")
+points(-npValue, d)
+
+
+
+```
+
+## *ex ante* wage returns
+
+```{r np regression}
+
+library(np)
+
+alpha0 <- resSim$dtEstimates[, unique(alpha0)]
+delta0 <- resSim$dtEstimates[, unique(delta0)]
+
+zeta0 <- resSim$dtEstimates[, zeta0]
+names(zeta0) <- resSim$dtEstimates[, varName]
+zeta0 <- zeta0[colnames(resSim$x[, 2:(length(zeta0)+1)])]
+
+d <- as.numeric(dtSim[, d])
+
+
+DeltaIndex <- colSums(t(resSim$x) * c(delta0, zeta0))
+negDeltaIndex <- -DeltaIndex
+
+DeltaModel <- np::npreg(1-d ~ DeltaIndex)
+
+plot(DeltaModel)
+
+beta0 <- resSim$dtEstimates[, beta0]
+names(beta0) <- resSim$dtEstimates[, varName]
+beta0 <- beta0[colnames(resSim$x[, 2:(length(beta0)+1)])]
+beta1 <- resSim$dtEstimates[, beta1]
+names(beta1) <- resSim$dtEstimates[, varName]
+beta1 <- beta1[colnames(resSim$x[, 2:(length(beta1)+1)])]
+
+Tx <- colSums(t(resSim$x[, 2:(length(zeta0)+1)]) * (beta0 - beta1))
+Gx <- DeltaIndex - Tx
+
+Fdelta <- npreg(txdat = DeltaIndex, tydat = 1-d, exdat = rep(Gx, each = length(Tx))+Tx)
+
+Fd <- colSums(matrix(Fdelta$mean, nrow = length(Tx))) / length(Tx)
+
+plot(x = -(Gx+Tx), y = Fd)
+plot(deltaModel)
+```
+
